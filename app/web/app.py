@@ -925,13 +925,18 @@ def get_dashboard_html() -> str:
                     }
                 },
 
-                initCharts() {
+initCharts() {
                     // Add delay to ensure DOM is ready
                     setTimeout(() => {
                         // Price Chart
                         const priceCtx = document.getElementById('priceChart');
                         if (priceCtx) {
                             try {
+                                // Destroy existing chart if it exists
+                                if (this.priceChart) {
+                                    this.priceChart.destroy();
+                                }
+                                
                                 this.priceChart = new Chart(priceCtx, {
                                     type: 'line',
                                     data: {
@@ -948,6 +953,7 @@ def get_dashboard_html() -> str:
                                     options: {
                                         responsive: true,
                                         maintainAspectRatio: false,
+                                        animation: false, // Disable animations to prevent stack overflow
                                         interaction: {
                                             intersect: false,
                                             mode: 'index'
@@ -977,6 +983,11 @@ def get_dashboard_html() -> str:
                         const allocationCtx = document.getElementById('allocationChart');
                         if (allocationCtx) {
                             try {
+                                // Destroy existing chart if it exists
+                                if (this.allocationChart) {
+                                    this.allocationChart.destroy();
+                                }
+                                
                                 this.allocationChart = new Chart(allocationCtx, {
                                     type: 'doughnut',
                                     data: {
@@ -989,6 +1000,7 @@ def get_dashboard_html() -> str:
                                     options: {
                                         responsive: true,
                                         maintainAspectRatio: false,
+                                        animation: false, // Disable animations
                                         plugins: {
                                             legend: { 
                                                 position: 'bottom',
@@ -1016,17 +1028,28 @@ def get_dashboard_html() -> str:
                         
                         for (let i = 23; i >= 0; i--) {
                             const time = new Date(now - i * 60 * 60 * 1000);
-                            labels.push(time.toLocaleTimeString());
+                            labels.push(time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
                             data.push(basePrice + (Math.random() - 0.5) * 1000);
                         }
                         
+                        // Update chart data without animation
                         this.priceChart.data.labels = labels;
                         this.priceChart.data.datasets[0].data = data;
-                        this.priceChart.update('none'); // Disable animation to prevent errors
+                        this.priceChart.update('none'); // 'none' disables all animations
                     } catch (error) {
                         console.error('Chart update error:', error);
+                        // If chart update fails, try to recreate it
+                        setTimeout(() => {
+                            if (this.priceChart) {
+                                this.priceChart.destroy();
+                                this.priceChart = null;
+                            }
+                            this.initCharts();
+                        }, 1000);
                     }
                 },
+
+
 
                 selectPair(symbol) {
                     this.selectedPair = symbol;
