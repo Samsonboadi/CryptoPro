@@ -1,0 +1,28 @@
+# Essential Dependencies for CryptoBot Pro
+# Install these first to get the basic bot running
+
+# Core Dependencies
+numpy>=1.24.0
+pandas>=2.0.0
+requests>=2.31.0
+PyYAML>=6.0.1
+python-dotenv>=1.0.0
+
+# Technical Analysis
+TA-Lib>=0.4.25
+
+# Web Framework
+Flask>=2.3.2
+Flask-SocketIO>=5.3.4
+
+# Logging
+colorlog>=6.7.0
+
+# WebSocket
+websocket-client>=1.6.1
+
+# Database (SQLite is built-in, SQLAlchemy is optional)
+# SQLAlchemy>=2.0.0
+
+# Configuration
+configparser>=5.3.0

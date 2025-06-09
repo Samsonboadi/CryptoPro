@@ -1,0 +1,94 @@
+api:
+  api_key: your_crypto_com_api_key_here
+  base_url: ''
+  sandbox: true
+  secret_key: your_crypto_com_secret_key_here
+  websocket_url: ''
+database:
+  echo: false
+  pool_size: 5
+  url: sqlite:///data/trading_bot.db
+features:
+  enable_backtesting: true
+  enable_ml: true
+  enable_notifications: false
+  enable_sentiment: false
+  enable_websocket: true
+logging:
+  backup_count: 5
+  console_output: true
+  file: app.log
+  level: INFO
+  max_size: 10485760
+monitoring:
+  enable_metrics: true
+  health_check_interval: 30
+  metrics_port: 9090
+notifications:
+  email:
+    enabled: false
+    password: ''
+    smtp_port: 587
+    smtp_server: ''
+    to_email: ''
+    username: ''
+  slack:
+    enabled: false
+    webhook_url: ''
+  telegram:
+    bot_token: ''
+    chat_id: ''
+    enabled: false
+risk:
+  default_stop_loss: 2.0
+  default_take_profit: 5.0
+  max_correlation: 0.7
+  max_daily_loss: 5.0
+  max_leverage: 3.0
+  max_open_positions: 5
+  max_position_size: 10.0
+strategies:
+  Bollinger Bands:
+    min_confidence: 0.7
+    period: 20
+    risk_percentage: 2.0
+    std_dev: 2.0
+    stop_loss: 2.5
+    take_profit: 5.0
+  MACD Strategy:
+    fast_period: 12
+    risk_percentage: 2.0
+    signal_period: 9
+    slow_period: 26
+    stop_loss: 2.0
+    take_profit: 5.0
+  ML Prediction:
+    confidence_threshold: 0.6
+    retrain_frequency: 24
+    risk_percentage: 1.5
+    stop_loss: 2.0
+    take_profit: 4.0
+  RSI Strategy:
+    max_lookback: 200
+    min_confidence: 0.6
+    min_data_points: 50
+    overbought_threshold: 70
+    oversold_threshold: 30
+    risk_percentage: 2.0
+    rsi_period: 14
+    stop_loss: 2.0
+    take_profit: 6.0
+trading:
+  enabled_strategies:
+  - RSI Strategy
+  max_trade_amount: 1000.0
+  min_trade_amount: 10.0
+  trade_frequency: 10
+  trading_pairs:
+  - BTCUSD-PERP
+  - ETHUSD-PERP
+web:
+  debug: true
+  host: 0.0.0.0
+  port: 5000
+  secret_key: ${WEB_SECRET_KEY}
