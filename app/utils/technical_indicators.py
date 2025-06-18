@@ -1,58 +1,74 @@
 """
-Pure Python Technical Indicators
-Alternative to TA-Lib that doesn't require compilation
+Technical Indicators using pandas_ta - Fixed Version
+All deprecated fillna methods replaced with modern equivalents
 """
 
 import numpy as np
 import pandas as pd
-from typing import Tuple, List
+import pandas_ta as ta
+from typing import Tuple, List, Optional, Union
 import logging
 
 logger = logging.getLogger(__name__)
 
 class TechnicalIndicators:
-    """Pure Python implementation of technical indicators"""
+    """Technical indicators using pandas_ta library - fixed version"""
     
     @staticmethod
-    def rsi(prices: np.array, period: int = 14) -> np.array:
+    def rsi(prices: Union[np.array, pd.Series], period: int = 14) -> np.array:
         """
-        Calculate Relative Strength Index (RSI)
+        Calculate Relative Strength Index (RSI) using pandas_ta
         
         Args:
-            prices: Array of prices
+            prices: Array or Series of prices
             period: RSI period (default 14)
             
         Returns:
             Array of RSI values
         """
         try:
+            # Convert to pandas Series if numpy array
+            if isinstance(prices, np.ndarray):
+                prices = pd.Series(prices)
+            
+            # Calculate RSI using pandas_ta
+            rsi_values = ta.rsi(prices, length=period)
+            
+            # Return as numpy array, handling NaN values
+            return rsi_values.bfill().fillna(50).values
+            
+        except Exception as e:
+            logger.error(f"Error calculating RSI with pandas_ta: {e}")
+            # Fallback to simple RSI calculation
+            return TechnicalIndicators._simple_rsi(prices.values if hasattr(prices, 'values') else prices, period)
+    
+    @staticmethod
+    def _simple_rsi(prices: np.array, period: int = 14) -> np.array:
+        """
+        Fallback simple RSI calculation
+        """
+        try:
             if len(prices) < period + 1:
-                return np.array([])
+                return np.full(len(prices), 50.0)
             
-            # Calculate price changes
             deltas = np.diff(prices)
-            
-            # Separate gains and losses
             gains = np.where(deltas > 0, deltas, 0)
             losses = np.where(deltas < 0, -deltas, 0)
             
-            # Calculate average gains and losses
-            avg_gains = np.zeros_like(prices)
-            avg_losses = np.zeros_like(prices)
+            # Calculate initial averages
+            avg_gains = np.zeros(len(prices))
+            avg_losses = np.zeros(len(prices))
             
-            # Initial averages (simple average for first period)
             avg_gains[period] = np.mean(gains[:period])
             avg_losses[period] = np.mean(losses[:period])
             
-            # Calculate smoothed averages for subsequent periods
+            # Calculate smoothed averages
             for i in range(period + 1, len(prices)):
                 avg_gains[i] = (avg_gains[i-1] * (period - 1) + gains[i-1]) / period
                 avg_losses[i] = (avg_losses[i-1] * (period - 1) + losses[i-1]) / period
             
             # Calculate RSI
-            rsi = np.zeros_like(prices)
-            rsi[:period] = np.nan
-            
+            rsi = np.full(len(prices), 50.0)
             for i in range(period, len(prices)):
                 if avg_losses[i] == 0:
                     rsi[i] = 100
@@ -63,273 +79,349 @@ class TechnicalIndicators:
             return rsi
             
         except Exception as e:
-            logger.error(f"Error calculating RSI: {e}")
-            return np.array([])
+            logger.error(f"Error in simple RSI calculation: {e}")
+            return np.full(len(prices), 50.0)
     
     @staticmethod
-    def sma(prices: np.array, period: int) -> np.array:
+    def sma(prices: Union[np.array, pd.Series], period: int) -> np.array:
         """
-        Calculate Simple Moving Average
-        
-        Args:
-            prices: Array of prices
-            period: Moving average period
-            
-        Returns:
-            Array of SMA values
+        Calculate Simple Moving Average using pandas_ta
         """
         try:
-            if len(prices) < period:
-                return np.array([])
+            if isinstance(prices, np.ndarray):
+                prices = pd.Series(prices)
             
-            sma = np.zeros_like(prices)
-            sma[:period-1] = np.nan
-            
-            for i in range(period-1, len(prices)):
-                sma[i] = np.mean(prices[i-period+1:i+1])
-            
-            return sma
+            sma_values = ta.sma(prices, length=period)
+            return sma_values.bfill().fillna(prices.iloc[0]).values
             
         except Exception as e:
             logger.error(f"Error calculating SMA: {e}")
-            return np.array([])
+            # Fallback calculation
+            if isinstance(prices, pd.Series):
+                return prices.rolling(window=period, min_periods=1).mean().values
+            else:
+                return pd.Series(prices).rolling(window=period, min_periods=1).mean().values
     
     @staticmethod
-    def ema(prices: np.array, period: int) -> np.array:
+    def ema(prices: Union[np.array, pd.Series], period: int) -> np.array:
         """
-        Calculate Exponential Moving Average
-        
-        Args:
-            prices: Array of prices
-            period: EMA period
-            
-        Returns:
-            Array of EMA values
+        Calculate Exponential Moving Average using pandas_ta
         """
         try:
-            if len(prices) < period:
-                return np.array([])
+            if isinstance(prices, np.ndarray):
+                prices = pd.Series(prices)
             
-            alpha = 2.0 / (period + 1)
-            ema = np.zeros_like(prices)
-            ema[:period-1] = np.nan
-            
-            # First EMA value is SMA
-            ema[period-1] = np.mean(prices[:period])
-            
-            # Calculate subsequent EMA values
-            for i in range(period, len(prices)):
-                ema[i] = alpha * prices[i] + (1 - alpha) * ema[i-1]
-            
-            return ema
+            ema_values = ta.ema(prices, length=period)
+            return ema_values.bfill().fillna(prices.iloc[0]).values
             
         except Exception as e:
             logger.error(f"Error calculating EMA: {e}")
-            return np.array([])
+            # Fallback calculation
+            if isinstance(prices, pd.Series):
+                return prices.ewm(span=period, adjust=False).mean().values
+            else:
+                return pd.Series(prices).ewm(span=period, adjust=False).mean().values
     
     @staticmethod
-    def bollinger_bands(prices: np.array, period: int = 20, std_dev: float = 2.0) -> Tuple[np.array, np.array, np.array]:
+    def bollinger_bands(prices: Union[np.array, pd.Series], period: int = 20, std_dev: float = 2.0) -> Tuple[np.array, np.array, np.array]:
         """
-        Calculate Bollinger Bands
-        
-        Args:
-            prices: Array of prices
-            period: Moving average period
-            std_dev: Standard deviation multiplier
-            
-        Returns:
-            Tuple of (upper_band, middle_band, lower_band)
+        Calculate Bollinger Bands using pandas_ta
         """
         try:
-            if len(prices) < period:
-                return np.array([]), np.array([]), np.array([])
+            if isinstance(prices, np.ndarray):
+                prices = pd.Series(prices)
             
-            # Calculate middle band (SMA)
-            middle_band = TechnicalIndicators.sma(prices, period)
+            # Calculate Bollinger Bands
+            bb_result = ta.bbands(prices, length=period, std=std_dev)
             
-            # Calculate standard deviation
-            std = np.zeros_like(prices)
-            std[:period-1] = np.nan
-            
-            for i in range(period-1, len(prices)):
-                std[i] = np.std(prices[i-period+1:i+1])
-            
-            # Calculate upper and lower bands
-            upper_band = middle_band + (std * std_dev)
-            lower_band = middle_band - (std * std_dev)
-            
-            return upper_band, middle_band, lower_band
-            
+            if bb_result is not None and len(bb_result.columns) >= 3:
+                # Extract bands (lower, middle, upper)
+                lower_band = bb_result.iloc[:, 0].bfill().fillna(prices.iloc[0]).values
+                middle_band = bb_result.iloc[:, 1].bfill().fillna(prices.iloc[0]).values  
+                upper_band = bb_result.iloc[:, 2].bfill().fillna(prices.iloc[0]).values
+                
+                return upper_band, middle_band, lower_band
+            else:
+                raise ValueError("Bollinger Bands calculation failed")
+                
         except Exception as e:
             logger.error(f"Error calculating Bollinger Bands: {e}")
-            return np.array([]), np.array([]), np.array([])
+            # Fallback calculation
+            sma_values = TechnicalIndicators.sma(prices, period)
+            std_values = pd.Series(prices).rolling(window=period).std().bfill().fillna(0).values
+            
+            upper_band = sma_values + (std_values * std_dev)
+            lower_band = sma_values - (std_values * std_dev)
+            
+            return upper_band, sma_values, lower_band
     
     @staticmethod
-    def macd(prices: np.array, fast: int = 12, slow: int = 26, signal: int = 9) -> Tuple[np.array, np.array, np.array]:
+    def macd(prices: Union[np.array, pd.Series], fast: int = 12, slow: int = 26, signal: int = 9) -> Tuple[np.array, np.array, np.array]:
         """
-        Calculate MACD (Moving Average Convergence Divergence)
-        
-        Args:
-            prices: Array of prices
-            fast: Fast EMA period
-            slow: Slow EMA period
-            signal: Signal line EMA period
-            
-        Returns:
-            Tuple of (macd_line, signal_line, histogram)
+        Calculate MACD using pandas_ta
         """
         try:
-            if len(prices) < slow:
-                return np.array([]), np.array([]), np.array([])
+            if isinstance(prices, np.ndarray):
+                prices = pd.Series(prices)
             
-            # Calculate EMAs
+            # Calculate MACD
+            macd_result = ta.macd(prices, fast=fast, slow=slow, signal=signal)
+            
+            if macd_result is not None and len(macd_result.columns) >= 3:
+                macd_line = macd_result.iloc[:, 0].fillna(0).values
+                macd_histogram = macd_result.iloc[:, 1].fillna(0).values
+                macd_signal = macd_result.iloc[:, 2].fillna(0).values
+                
+                return macd_line, macd_signal, macd_histogram
+            else:
+                raise ValueError("MACD calculation failed")
+                
+        except Exception as e:
+            logger.error(f"Error calculating MACD: {e}")
+            # Fallback calculation
             ema_fast = TechnicalIndicators.ema(prices, fast)
             ema_slow = TechnicalIndicators.ema(prices, slow)
-            
-            # Calculate MACD line
             macd_line = ema_fast - ema_slow
             
-            # Calculate signal line (EMA of MACD line)
-            # Remove NaN values for signal calculation
-            macd_clean = macd_line[~np.isnan(macd_line)]
-            if len(macd_clean) >= signal:
-                signal_ema = TechnicalIndicators.ema(macd_clean, signal)
-                
-                # Align signal line with original array
-                signal_line = np.full_like(macd_line, np.nan)
-                start_idx = len(macd_line) - len(signal_ema)
-                signal_line[start_idx:] = signal_ema
-            else:
-                signal_line = np.full_like(macd_line, np.nan)
+            # Signal line
+            macd_series = pd.Series(macd_line)
+            signal_line = macd_series.ewm(span=signal, adjust=False).mean().fillna(0).values
             
-            # Calculate histogram
+            # Histogram
             histogram = macd_line - signal_line
             
             return macd_line, signal_line, histogram
-            
-        except Exception as e:
-            logger.error(f"Error calculating MACD: {e}")
-            return np.array([]), np.array([]), np.array([])
     
     @staticmethod
-    def stochastic(high: np.array, low: np.array, close: np.array, k_period: int = 14, d_period: int = 3) -> Tuple[np.array, np.array]:
+    def stochastic(high: Union[np.array, pd.Series], low: Union[np.array, pd.Series], 
+                  close: Union[np.array, pd.Series], k_period: int = 14, d_period: int = 3) -> Tuple[np.array, np.array]:
         """
-        Calculate Stochastic Oscillator
-        
-        Args:
-            high: Array of high prices
-            low: Array of low prices
-            close: Array of close prices
-            k_period: %K period
-            d_period: %D period
-            
-        Returns:
-            Tuple of (%K, %D)
+        Calculate Stochastic Oscillator using pandas_ta
         """
         try:
-            if len(close) < k_period:
-                return np.array([]), np.array([])
+            # Convert to pandas Series if needed
+            if isinstance(high, np.ndarray):
+                high = pd.Series(high)
+            if isinstance(low, np.ndarray):
+                low = pd.Series(low)
+            if isinstance(close, np.ndarray):
+                close = pd.Series(close)
             
-            k_percent = np.zeros_like(close)
-            k_percent[:k_period-1] = np.nan
+            # Calculate Stochastic
+            stoch_result = ta.stoch(high=high, low=low, close=close, k=k_period, d=d_period)
+            
+            if stoch_result is not None and len(stoch_result.columns) >= 2:
+                k_percent = stoch_result.iloc[:, 0].fillna(50).values  # %K
+                d_percent = stoch_result.iloc[:, 1].fillna(50).values  # %D
+                
+                return k_percent, d_percent
+            else:
+                raise ValueError("Stochastic calculation failed")
+                
+        except Exception as e:
+            logger.error(f"Error calculating Stochastic: {e}")
+            # Fallback calculation
+            k_percent = np.full(len(close), 50.0)
+            d_percent = np.full(len(close), 50.0)
             
             for i in range(k_period-1, len(close)):
                 highest_high = np.max(high[i-k_period+1:i+1])
                 lowest_low = np.min(low[i-k_period+1:i+1])
                 
-                if highest_high == lowest_low:
-                    k_percent[i] = 50  # Avoid division by zero
-                else:
+                if highest_high != lowest_low:
                     k_percent[i] = ((close[i] - lowest_low) / (highest_high - lowest_low)) * 100
             
-            # Calculate %D (SMA of %K)
-            k_clean = k_percent[~np.isnan(k_percent)]
-            if len(k_clean) >= d_period:
-                d_percent_clean = TechnicalIndicators.sma(k_clean, d_period)
-                
-                # Align %D with original array
-                d_percent = np.full_like(k_percent, np.nan)
-                start_idx = len(k_percent) - len(d_percent_clean)
-                d_percent[start_idx:] = d_percent_clean
-            else:
-                d_percent = np.full_like(k_percent, np.nan)
+            # Calculate %D as SMA of %K
+            k_series = pd.Series(k_percent)
+            d_percent = k_series.rolling(window=d_period, min_periods=1).mean().values
             
             return k_percent, d_percent
-            
-        except Exception as e:
-            logger.error(f"Error calculating Stochastic: {e}")
-            return np.array([]), np.array([])
     
     @staticmethod
-    def atr(high: np.array, low: np.array, close: np.array, period: int = 14) -> np.array:
+    def atr(high: Union[np.array, pd.Series], low: Union[np.array, pd.Series], 
+           close: Union[np.array, pd.Series], period: int = 14) -> np.array:
         """
-        Calculate Average True Range
-        
-        Args:
-            high: Array of high prices
-            low: Array of low prices
-            close: Array of close prices
-            period: ATR period
-            
-        Returns:
-            Array of ATR values
+        Calculate Average True Range using pandas_ta
         """
         try:
-            if len(close) < 2:
-                return np.array([])
+            # Convert to pandas Series if needed
+            if isinstance(high, np.ndarray):
+                high = pd.Series(high)
+            if isinstance(low, np.ndarray):
+                low = pd.Series(low)
+            if isinstance(close, np.ndarray):
+                close = pd.Series(close)
             
-            # Calculate True Range
-            tr1 = high - low
-            tr2 = np.abs(high - np.roll(close, 1))
-            tr3 = np.abs(low - np.roll(close, 1))
+            # Calculate ATR
+            atr_values = ta.atr(high=high, low=low, close=close, length=period)
             
-            # Set first values (no previous close)
-            tr2[0] = high[0] - low[0]
-            tr3[0] = high[0] - low[0]
-            
-            true_range = np.maximum(tr1, np.maximum(tr2, tr3))
-            
-            # Calculate ATR using SMA
-            atr = TechnicalIndicators.sma(true_range, period)
-            
-            return atr
-            
+            if atr_values is not None:
+                return atr_values.bfill().fillna(1.0).values
+            else:
+                raise ValueError("ATR calculation failed")
+                
         except Exception as e:
             logger.error(f"Error calculating ATR: {e}")
-            return np.array([])
+            # Fallback calculation
+            tr1 = high - low
+            tr2 = np.abs(high - close.shift(1))
+            tr3 = np.abs(low - close.shift(1))
+            
+            true_range = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+            atr = true_range.rolling(window=period, min_periods=1).mean()
+            
+            return atr.bfill().fillna(1.0).values
     
     @staticmethod
-    def williams_r(high: np.array, low: np.array, close: np.array, period: int = 14) -> np.array:
+    def williams_r(high: Union[np.array, pd.Series], low: Union[np.array, pd.Series], 
+                  close: Union[np.array, pd.Series], period: int = 14) -> np.array:
         """
-        Calculate Williams %R
-        
-        Args:
-            high: Array of high prices
-            low: Array of low prices
-            close: Array of close prices
-            period: Period for calculation
-            
-        Returns:
-            Array of Williams %R values
+        Calculate Williams %R using pandas_ta
         """
         try:
-            if len(close) < period:
-                return np.array([])
+            # Convert to pandas Series if needed
+            if isinstance(high, np.ndarray):
+                high = pd.Series(high)
+            if isinstance(low, np.ndarray):
+                low = pd.Series(low)
+            if isinstance(close, np.ndarray):
+                close = pd.Series(close)
             
-            williams_r = np.zeros_like(close)
-            williams_r[:period-1] = np.nan
+            # Calculate Williams %R
+            willr_values = ta.willr(high=high, low=low, close=close, length=period)
+            
+            if willr_values is not None:
+                return willr_values.fillna(-50).values
+            else:
+                raise ValueError("Williams %R calculation failed")
+                
+        except Exception as e:
+            logger.error(f"Error calculating Williams %R: {e}")
+            # Fallback calculation
+            williams_r = np.full(len(close), -50.0)
             
             for i in range(period-1, len(close)):
                 highest_high = np.max(high[i-period+1:i+1])
                 lowest_low = np.min(low[i-period+1:i+1])
                 
-                if highest_high == lowest_low:
-                    williams_r[i] = -50  # Avoid division by zero
-                else:
+                if highest_high != lowest_low:
                     williams_r[i] = ((highest_high - close[i]) / (highest_high - lowest_low)) * -100
             
             return williams_r
+    
+    @staticmethod
+    def adx(high: Union[np.array, pd.Series], low: Union[np.array, pd.Series], 
+           close: Union[np.array, pd.Series], period: int = 14) -> np.array:
+        """
+        Calculate Average Directional Index (ADX) using pandas_ta
+        """
+        try:
+            # Convert to pandas Series if needed
+            if isinstance(high, np.ndarray):
+                high = pd.Series(high)
+            if isinstance(low, np.ndarray):
+                low = pd.Series(low)
+            if isinstance(close, np.ndarray):
+                close = pd.Series(close)
             
+            # Calculate ADX
+            adx_result = ta.adx(high=high, low=low, close=close, length=period)
+            
+            if adx_result is not None and f'ADX_{period}' in adx_result.columns:
+                return adx_result[f'ADX_{period}'].fillna(25).values
+            else:
+                raise ValueError("ADX calculation failed")
+                
         except Exception as e:
-            logger.error(f"Error calculating Williams %R: {e}")
-            return np.array([])
+            logger.error(f"Error calculating ADX: {e}")
+            return np.full(len(close), 25.0)  # Neutral ADX value
+    
+    @staticmethod
+    def obv(close: Union[np.array, pd.Series], volume: Union[np.array, pd.Series]) -> np.array:
+        """
+        Calculate On-Balance Volume (OBV) using pandas_ta
+        """
+        try:
+            # Convert to pandas Series if needed
+            if isinstance(close, np.ndarray):
+                close = pd.Series(close)
+            if isinstance(volume, np.ndarray):
+                volume = pd.Series(volume)
+            
+            # Calculate OBV
+            obv_values = ta.obv(close=close, volume=volume)
+            
+            if obv_values is not None:
+                return obv_values.fillna(0).values
+            else:
+                raise ValueError("OBV calculation failed")
+                
+        except Exception as e:
+            logger.error(f"Error calculating OBV: {e}")
+            # Simple fallback
+            direction = np.where(close.diff() > 0, 1, np.where(close.diff() < 0, -1, 0))
+            return np.cumsum(direction * volume).fillna(0)
+
+# Convenience function for DataFrame operations
+def add_all_indicators(df: pd.DataFrame, 
+                      high_col: str = 'high',
+                      low_col: str = 'low', 
+                      close_col: str = 'close',
+                      volume_col: str = 'volume') -> pd.DataFrame:
+    """
+    Add all common technical indicators to a DataFrame
+    
+    Args:
+        df: DataFrame with OHLCV data
+        high_col: Name of high price column
+        low_col: Name of low price column  
+        close_col: Name of close price column
+        volume_col: Name of volume column
+        
+    Returns:
+        DataFrame with added indicator columns
+    """
+    try:
+        indicators = TechnicalIndicators()
+        
+        # Basic indicators
+        df['sma_20'] = indicators.sma(df[close_col], 20)
+        df['ema_20'] = indicators.ema(df[close_col], 20)
+        df['rsi'] = indicators.rsi(df[close_col], 14)
+        
+        # Bollinger Bands
+        bb_upper, bb_middle, bb_lower = indicators.bollinger_bands(df[close_col], 20, 2.0)
+        df['bb_upper'] = bb_upper
+        df['bb_middle'] = bb_middle
+        df['bb_lower'] = bb_lower
+        
+        # MACD
+        macd_line, macd_signal, macd_histogram = indicators.macd(df[close_col])
+        df['macd'] = macd_line
+        df['macd_signal'] = macd_signal
+        df['macd_histogram'] = macd_histogram
+        
+        # Stochastic
+        stoch_k, stoch_d = indicators.stochastic(df[high_col], df[low_col], df[close_col])
+        df['stoch_k'] = stoch_k
+        df['stoch_d'] = stoch_d
+        
+        # ATR
+        df['atr'] = indicators.atr(df[high_col], df[low_col], df[close_col])
+        
+        # Williams %R
+        df['williams_r'] = indicators.williams_r(df[high_col], df[low_col], df[close_col])
+        
+        # ADX
+        df['adx'] = indicators.adx(df[high_col], df[low_col], df[close_col])
+        
+        # OBV
+        if volume_col in df.columns:
+            df['obv'] = indicators.obv(df[close_col], df[volume_col])
+        
+        logger.info("Successfully added all technical indicators to DataFrame")
+        return df
+        
+    except Exception as e:
+        logger.error(f"Error adding indicators to DataFrame: {e}")
+        return df

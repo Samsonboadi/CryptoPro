@@ -84,9 +84,10 @@ trading:
   max_trade_amount: 1000.0
   min_trade_amount: 10.0
   trade_frequency: 10
-  trading_pairs:
+trading_pairs:
   - BTCUSD-PERP
-  - ETHUSD-PERP
+  - ETHUSD-PERP  
+  - ADAUSD-PERP
 web:
   debug: true
   host: 0.0.0.0
